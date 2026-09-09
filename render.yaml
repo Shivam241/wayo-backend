@@ -1,0 +1,97 @@
+# Render blueprint for the Wayo API.
+#
+# This repo's root IS the backend, so there is no rootDir. Create from the
+# dashboard: New → Blueprint → pick this repository.
+#
+# Postgres is the only hard dependency. The API degrades cleanly without Redis
+# and MongoDB, so they are left out rather than provisioned by default.
+
+databases:
+  - name: wayo-postgres
+    databaseName: wayo
+    user: wayo
+    plan: free
+
+services:
+  - type: web
+    name: wayo-api
+    runtime: node
+    plan: free
+    region: singapore # closest to Delhi NCR; must match the database region
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    # Migrations run on boot (src/server.ts), so traffic is held until the
+    # schema is current.
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+
+      # Render injects PORT; config reads it and binds 0.0.0.0.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wayo-postgres
+          property: connectionString
+
+      # Wall-clock ride times and recurrence days are local to this zone.
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+
+      # ---------------------------------------------------------------- auth
+      # Dev tokens let anyone sign in as any account. False on purpose: with
+      # this off and no Firebase configured, NOBODY can log in. For a closed
+      # pilot set it to true in the dashboard and read DEPLOY.md first.
+      - key: ALLOW_DEV_AUTH
+        value: false
+
+      # Set in the dashboard, never committed.
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+
+      # ---------------------------------------------------------------- maps
+      # `local` uses a straight-line estimate: no key, no billing.
+      - key: MAPS_PROVIDER
+        value: local
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: MAPBOX_TOKEN
+        sync: false
+
+      # ------------------------------------------------------- cost + matching
+      - key: COST_CURRENCY
+        value: INR
+      - key: COST_REGION
+        value: IN-DL
+      - key: COST_DRIVER_SHARE
+        value: "0.25"
+      - key: MATCH_ALGO_VERSION
+        value: v1.0.0
+
+      # -------------------------------------------------------- optional infra
+      # Uncomment together with the keyvalue service below. Without Redis the
+      # API caches nothing and runs its jobs on in-process timers.
+      # - key: REDIS_URL
+      #   fromService:
+      #     type: keyvalue
+      #     name: wayo-redis
+      #     property: connectionString
+      #
+      # MongoDB is not a Render product; it backs only the support diagnostics
+      # stream. Leave unset, or paste a MongoDB Atlas URI in the dashboard.
+      # - key: MONGO_URL
+      #   sync: false
+
+# Optional cache and job queue. Uncomment with REDIS_URL above.
+# Older Render blueprints name this type `redis` rather than `keyvalue`.
+# services:
+#   - type: keyvalue
+#     name: wayo-redis
+#     plan: free
+#     region: singapore
+#     ipAllowList: []
