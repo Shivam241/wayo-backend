@@ -11,6 +11,7 @@ databases:
     databaseName: wayo
     user: wayo
     plan: free
+    region: singapore
 
 services:
   - type: web
