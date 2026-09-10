@@ -18,7 +18,7 @@ services:
     runtime: node
     plan: free
     region: singapore # closest to Delhi NCR; must match the database region
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     # Migrations run on boot (src/server.ts), so traffic is held until the
     # schema is current.
